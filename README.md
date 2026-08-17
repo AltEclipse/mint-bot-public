@@ -1,9 +1,9 @@
 # Mint Bot
 
-A Telegram bot that **builds** mint transactions and pushes them to your wallet
-to sign. It never holds a private key — not "stores one securely", *never has
-one*. There is no code path in here that could sign anything; the only way a
-transaction leaves is you approving it on your phone.
+A Telegram bot that **builds** NFT mint transactions and pushes them to your
+wallet to sign. It never holds a private key — not "stores one securely",
+*never has one*. There is no code path in here that could sign anything; the
+only way a transaction leaves is you approving it on your phone.
 
 ## What it does
 
@@ -12,31 +12,28 @@ your phone, you check it and approve. The value of it is that at 3am you don't
 have to find the mint page, connect, and hunt for the button — you send five
 characters and check a prompt.
 
-## How it works
+Save a collection once:
 
 ```
-you (Telegram) ──> bot (this repo, on any always-on host)
-                     │
-                     ├── targets.js   saved collections: contract, function, price
-                     ├── tx.js        signature → calldata (viem), price × qty → value
-                     │
-                     └── wallet.js    WalletConnect → the tx pops on YOUR phone,
-                                      you approve, your wallet signs and sends
+/save blankrunner base 0xABC…123 simple 0.02
+→ Saved blankrunner on base
+  mint(uint256)
+  0.02 ETH each
 ```
 
-The flow for a mint is: `/mint` looks up the saved target, `tx.js` encodes the
-function call with viem and multiplies the per-unit price by quantity, and
-`wallet.js` pushes the result over the WalletConnect session to whatever
-wallet you paired with `/link`. The bot's job ends there — your wallet shows
-you the real transaction, and signing happens on your phone or not at all.
+Then, whenever it goes live:
 
-Because the bot only ever *builds* transactions, the worst a compromised
-server can do is ask your phone annoying questions. There is no key to steal
-and no code path that signs. `tx.js` is kept free of Telegram and network so
-the money-touching logic is unit-testable — see `test/encode.test.js`.
+```
+/mint blankrunner 3
+→ Mint blankrunner ×3
+  Chain: Base
+  To: 0xABC…123
+  Value: 0.06 ETH
+  Check it on your phone and approve.
+```
 
-Saved targets and the WalletConnect session live in `./data`, so pairing and
-targets survive restarts (mount a volume there when hosting).
+Your wallet buzzes, you read the prompt, you approve. The bot replies with the
+transaction hash and an explorer link.
 
 ## What it does not do
 
@@ -48,16 +45,32 @@ targets survive restarts (mount a volume there when hosting).
 - **It doesn't handle allowlist proofs.** Merkle-proof mints need the proof as
   an argument — use `/raw` with calldata copied from the mint page.
 
+## Requirements
+
+- Node 20 or newer
+- A Telegram account
+- A mobile wallet that speaks WalletConnect (MetaMask, Rainbow, Trust, …)
+- Somewhere to run it — see [Deploying](#deploying). A laptop is fine for
+  testing, but the bot can only answer while the process is running.
+
 ## Setup
 
 1. `npm install`
-2. `cp .env.example .env` and fill in:
-   - `BOT_TOKEN` — from [@BotFather](https://t.me/BotFather), `/newbot`
-   - `WC_PROJECT_ID` — create a project on the WalletConnect / Reown dashboard
-   - `OWNER_ID` — your numeric Telegram id, from [@userinfobot](https://t.me/userinfobot)
+2. `cp .env.example .env` and fill in three values:
+   - `BOT_TOKEN` — message [@BotFather](https://t.me/BotFather), send `/newbot`,
+     follow the prompts, copy the token it gives you
+   - `WC_PROJECT_ID` — create a free project on the
+     [WalletConnect / Reown dashboard](https://dashboard.reown.com) and copy the
+     Project ID
+   - `OWNER_ID` — your numeric Telegram user id, from
+     [@userinfobot](https://t.me/userinfobot). Messages from every other account
+     are dropped.
 3. `npm start`
-4. In Telegram: `/link`, scan the QR with your wallet, **approve every chain you
-   intend to mint on** — a chain you skip can't be used later without re-pairing.
+4. In Telegram, send `/link` and scan the QR with your wallet. **Approve every
+   chain you intend to mint on** — a chain you skip can't be used later without
+   pairing again.
+
+That's it. `/save` a collection and you're ready.
 
 ## Commands
 
@@ -71,48 +84,95 @@ targets survive restarts (mount a volume there when hosting).
 | `/mint <name> [qty]` | Build and send for approval |
 | `/raw <chain> <to> <eth> <0xdata>` | Anything the presets don't cover |
 
-Presets: `simple` — `mint(uint256)`, `to` — `mint(address,uint256)`,
-`seadrop` — OpenSea's `mintPublic(...)`, `zora` — `purchase(uint256)`.
+**Chains:** `eth`, `base`, `arb`, `op`, `polygon`, `zora`.
 
-Chains: `eth`, `base`, `arb`, `op`, `polygon`, `zora`.
+**Presets** cover the mint function shapes that actually recur:
+
+| Preset | Function |
+| --- | --- |
+| `simple` | `mint(uint256)` |
+| `to` | `mint(address,uint256)` |
+| `seadrop` | OpenSea's `mintPublic(address,address,address,uint256)` |
+| `zora` | `purchase(uint256)` |
+
+If a collection doesn't match one, pass the signature yourself and the bot
+works out which argument is the quantity and which is your address:
 
 ```
-/save blankrunner base 0xABC…  simple 0.02
-/mint blankrunner 3
+/save foo base 0xABC…123 "mintTo(address,uint256)" 0.01
 ```
 
-`price` is **per unit** — quantity multiplies it. There's a test pinning that,
-because getting it backwards either underpays and reverts or overpays and doesn't.
+When it *can't* tell — two number arguments, say, where either could be the
+quantity — it refuses to save rather than guess. Guessing there would mint the
+wrong thing at the wrong price.
+
+`price` is **per unit**; quantity multiplies it. There's a test pinning that,
+because getting it backwards either underpays and reverts or overpays and
+doesn't tell you.
+
+## How it works
+
+```
+you (Telegram) ──> bot (this repo, on any always-on host)
+                     │
+                     ├── targets.js   saved collections: contract, function, price
+                     ├── tx.js        signature → calldata (viem), price × qty → value
+                     │
+                     └── wallet.js    WalletConnect → the tx pops on YOUR phone,
+                                      you approve, your wallet signs and sends
+```
+
+A mint goes like this: `/mint` looks up the saved target, `tx.js` encodes the
+function call with [viem](https://viem.sh) and multiplies the per-unit price by
+quantity, and `wallet.js` pushes the result over the WalletConnect session to
+whatever wallet you paired with `/link`. The bot's job ends there — your wallet
+shows you the real transaction, and signing happens on your phone or not at all.
+
+Because the bot only ever *builds* transactions, the worst a compromised server
+can do is ask your phone annoying questions. There is no key to steal and no
+code path that signs. `tx.js` is deliberately free of Telegram and network code
+so the money-touching logic can be unit-tested — see `test/encode.test.js`.
+
+Saved targets and the WalletConnect session live in `./data`, so both survive a
+restart. Mount a volume there when hosting.
 
 ## Security notes, in order of how likely they are to bite you
 
-1. **The bot token is a bearer credential.** Anyone with it can talk to your
+1. **The bot token is a bearer credential.** Anyone holding it can talk to your
    bot. `OWNER_ID` means a stranger's messages are dropped, so a leaked token is
    an annoyance rather than a wallet-drain vector — but rotate it via BotFather
    if it ever leaks.
 2. **Approve prompts are the last line of defence, so actually read them.** The
-   bot shows you chain, destination and value before it asks; the wallet shows
-   the real thing. If those disagree, decline.
-3. **Don't add a "confirm automatically" feature later.** The whole security
-   model of this design is that a human looks at every transaction. The moment
-   you remove that, you're back to architecture #3 and you need a burner wallet.
-4. Saved targets live in `data/targets.json` — not secret, but a wrong address
-   in there is a transaction to a wrong address. `/save` refuses anything that
-   doesn't encode, and rejects addresses that fail their checksum.
+   bot shows you chain, destination and value before it asks; your wallet shows
+   you the real thing. If those two disagree, decline.
+3. **Don't bolt on an "approve automatically" option.** The entire security
+   argument for this design is that a human looks at every transaction. Remove
+   that and the bot needs a private key of its own — at which point a
+   compromised server drains the wallet. That's a different risk model, and it
+   only becomes defensible with a dedicated burner wallet and hard spending
+   caps.
+4. **A wrong address in a saved target is a transaction to a wrong address.**
+   Targets live in `data/targets.json` and aren't secret, but `/save` refuses
+   anything that doesn't encode and rejects addresses that fail their checksum,
+   so typos get caught when you save rather than when you mint.
 
 ## Tests
 
 ```
-npm test           # transaction encoding
+npm test                  # transaction encoding — the ones that matter
 node test/guess.test.js   # signature parsing, preset sanity
 ```
 
-The encoding tests are the ones that matter. They cover value-scales-with-
-quantity, placeholder substitution, checksum rejection, and that every shipped
-preset actually produces calldata.
+The encoding tests cover value-scales-with-quantity, placeholder substitution,
+checksum rejection, and that every shipped preset actually produces calldata.
+They need no network, no wallet, and no bot token.
 
 ## Deploying
 
-Any always-on host: Railway, Fly.io, a small VPS. It's a long-poll bot, so it
-needs no inbound ports and no public URL. Set the three env vars as secrets.
-Mount a volume at `./data` if you want targets to survive redeploys.
+Any always-on host works: Fly.io, Railway, a small VPS. It's a long-poll bot,
+so it needs no inbound ports and no public URL — which keeps it cheap to run
+and leaves it nothing to attack from outside.
+
+Set the three environment variables as secrets rather than shipping a `.env`,
+and mount a volume at `./data` so your targets and wallet pairing survive
+redeploys.
