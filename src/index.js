@@ -190,8 +190,11 @@ bot.command("raw", async (ctx) => {
 
 (async () => {
   await wallet.init(WC_PROJECT_ID);
+  // bot.launch() resolves only when the bot *stops*, so log before it, once
+  // the token has been verified against Telegram.
+  const me = await bot.telegram.getMe();
+  console.log(`Mint Bot running as @${me.username}. Owner: ${OWNER_ID}`);
   await bot.launch();
-  console.log("Mint Bot running. Owner:", OWNER_ID);
 })();
 
 process.once("SIGINT", () => bot.stop("SIGINT"));
