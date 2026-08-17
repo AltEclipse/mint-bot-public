@@ -5,6 +5,12 @@ wallet to sign. It never holds a private key — not "stores one securely",
 *never has one*. There is no code path in here that could sign anything; the
 only way a transaction leaves is you approving it on your phone.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/AltEclipse/mint-bot-public)
+
+**No computer? Use the button.** It works from a phone browser and asks you for
+three values — everything after that happens in Telegram. See
+[Setup without a computer](#setup-without-a-computer).
+
 ## What it does
 
 You message the bot, it encodes the call, WalletConnect pops the transaction on
@@ -53,7 +59,34 @@ transaction hash and an explorer link.
 - Somewhere to run it — see [Deploying](#deploying). A laptop is fine for
   testing, but the bot can only answer while the process is running.
 
-## Setup
+No computer? Skip to [Setup without a computer](#setup-without-a-computer) —
+Node and a terminal are only needed if you're running it yourself.
+
+## Setup without a computer
+
+Everything below works from a phone browser, and the three values you need all
+come from Telegram or a web page.
+
+1. **Get your bot token.** In Telegram, message
+   [@BotFather](https://t.me/BotFather), send `/newbot`, pick a name. He replies
+   with a token — copy it.
+2. **Get a WalletConnect project id.** Sign in at
+   [dashboard.reown.com](https://dashboard.reown.com), create a project, copy
+   the Project ID.
+3. **Get your Telegram id.** Message [@userinfobot](https://t.me/userinfobot).
+   It replies with a number.
+4. **Tap the Deploy to Render button** at the top of this page. Sign in with
+   GitHub, and Render will ask you for exactly those three values. Paste each
+   one in and deploy.
+5. **Open Telegram and message your new bot.** Send `/link`, scan the QR with
+   your wallet app, and approve the chains you want.
+
+Done — you never touched a terminal. Note that an always-on bot isn't free:
+Render background workers start at a few dollars a month, because the free tier
+only covers web services that fall asleep when idle, which would take the bot
+down with them.
+
+## Setup with a computer
 
 1. `npm install`
 2. `cp .env.example .env` and fill in three values:
@@ -169,9 +202,13 @@ They need no network, no wallet, and no bot token.
 
 ## Deploying
 
-Any always-on host works: Fly.io, Railway, a small VPS. It's a long-poll bot,
-so it needs no inbound ports and no public URL — which keeps it cheap to run
-and leaves it nothing to attack from outside.
+The one-tap route is the Deploy to Render button at the top, driven by the
+`render.yaml` in this repo. Any always-on host works too: Fly.io, Railway, a
+small VPS. It's a long-poll bot, so it needs no inbound ports and no public URL
+— which keeps it cheap to run and leaves it nothing to attack from outside.
+
+Run it as a **worker**, not a web service. It never listens on a port, so
+anything that sleeps idle web services will put your bot to sleep with them.
 
 Set the three environment variables as secrets rather than shipping a `.env`,
 and mount a volume at `./data` so your targets and wallet pairing survive

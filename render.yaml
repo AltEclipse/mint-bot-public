@@ -1,0 +1,41 @@
+# One-tap deploy for people without a terminal.
+#
+# Render prompts for the three sync:false values during the initial Blueprint
+# creation — and only then, so set them in the dashboard afterwards if you ever
+# need to change one.
+#
+# This is a worker rather than a web service on purpose: the bot long-polls
+# Telegram and never listens on a port. Render's free tier is web services
+# only, and those sleep when idle, which would put the bot to sleep too.
+services:
+  - type: worker
+    name: mint-bot
+    runtime: node
+    plan: starter
+    region: frankfurt
+    buildCommand: npm ci
+    startCommand: npm start
+    autoDeploy: false
+
+    # Saved targets and the WalletConnect pairing live here, so /link survives
+    # restarts and redeploys.
+    disk:
+      name: mint-data
+      mountPath: /app/data
+      sizeGB: 1
+
+    envVars:
+      # From @BotFather on Telegram: /newbot
+      - key: BOT_TOKEN
+        sync: false
+      # Project ID from dashboard.reown.com
+      - key: WC_PROJECT_ID
+        sync: false
+      # Your numeric Telegram id, from @userinfobot. The bot ignores everyone else.
+      - key: OWNER_ID
+        sync: false
+
+      - key: DATA_DIR
+        value: /app/data
+      - key: TARGETS_FILE
+        value: /app/data/targets.json
