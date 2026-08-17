@@ -176,3 +176,7 @@ and leaves it nothing to attack from outside.
 Set the three environment variables as secrets rather than shipping a `.env`,
 and mount a volume at `./data` so your targets and wallet pairing survive
 redeploys.
+
+## License
+
+[MIT](LICENSE) — use it, fork it, ship it, no warranty.

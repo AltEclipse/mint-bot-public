@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Telegram bot that prepares NFT mint transactions and sends them to your wallet to sign. Never holds a private key.",
+  "license": "MIT",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
