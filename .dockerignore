@@ -1,0 +1,8 @@
+node_modules
+.env
+data
+test
+doctor.js
+check*.mjs
+.git
+*.md
