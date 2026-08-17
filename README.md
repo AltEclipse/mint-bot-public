@@ -12,6 +12,32 @@ your phone, you check it and approve. The value of it is that at 3am you don't
 have to find the mint page, connect, and hunt for the button — you send five
 characters and check a prompt.
 
+## How it works
+
+```
+you (Telegram) ──> bot (this repo, on any always-on host)
+                     │
+                     ├── targets.js   saved collections: contract, function, price
+                     ├── tx.js        signature → calldata (viem), price × qty → value
+                     │
+                     └── wallet.js    WalletConnect → the tx pops on YOUR phone,
+                                      you approve, your wallet signs and sends
+```
+
+The flow for a mint is: `/mint` looks up the saved target, `tx.js` encodes the
+function call with viem and multiplies the per-unit price by quantity, and
+`wallet.js` pushes the result over the WalletConnect session to whatever
+wallet you paired with `/link`. The bot's job ends there — your wallet shows
+you the real transaction, and signing happens on your phone or not at all.
+
+Because the bot only ever *builds* transactions, the worst a compromised
+server can do is ask your phone annoying questions. There is no key to steal
+and no code path that signs. `tx.js` is kept free of Telegram and network so
+the money-touching logic is unit-testable — see `test/encode.test.js`.
+
+Saved targets and the WalletConnect session live in `./data`, so pairing and
+targets survive restarts (mount a volume there when hosting).
+
 ## What it does not do
 
 - **It will not win a gas war.** Bots that win competitive mints run against
